@@ -112,6 +112,23 @@ export interface Connector {
   parseWebhook?(body: unknown, headers: Record<string, string>): NormalizedMention[];
 
   /**
+   * Is this POST genuinely from the platform? Checked BEFORE `parseWebhook`, and
+   * a false answer means the request is dropped unparsed.
+   *
+   * Any connector with a `parseWebhook` needs this. The webhook path is
+   * necessarily unauthenticated at the HTTP layer — a platform cannot be handed
+   * our access code — so the signature is the *only* thing standing between the
+   * open internet and `ingest()`. Without it anyone can post a fabricated
+   * mention, and since ingest feeds auto-resolve, a fabricated mention carrying
+   * one valid code becomes a sighting on a real customer's dashboard and an
+   * email telling them they were spotted online.
+   *
+   * Takes the RAW body, because every scheme worth having signs the bytes that
+   * were sent rather than a re-serialisation of them.
+   */
+  verifyWebhookSignature?(rawBody: Buffer | string | undefined, headers: Record<string, string>): boolean;
+
+  /**
    * Post a public reply/acknowledgement to a mention (used by auto-ack, opt-in).
    * Requires WRITE credentials (user-context OAuth), separate from read access —
    * so a connector may support reading mentions but not replying yet.

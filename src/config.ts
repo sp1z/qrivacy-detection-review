@@ -187,11 +187,17 @@ export const config = {
     accessToken: env("IG_ACCESS_TOKEN"),
     businessAccountId: env("IG_BUSINESS_ACCOUNT_ID"),
     webhookVerifyToken: env("IG_WEBHOOK_VERIFY_TOKEN"),
+    // Meta signs every webhook POST with the APP secret, not a page token. One
+    // Meta app almost always serves both Instagram and Facebook, so the shared
+    // META_APP_SECRET is the normal setting and the per-platform names are the
+    // escape hatch for the unusual case of two apps.
+    appSecret: env("IG_APP_SECRET") || env("META_APP_SECRET"),
   },
   facebook: {
     pageAccessToken: env("FB_PAGE_ACCESS_TOKEN"),
     pageId: env("FB_PAGE_ID"),
     webhookVerifyToken: env("FB_WEBHOOK_VERIFY_TOKEN"),
+    appSecret: env("FB_APP_SECRET") || env("META_APP_SECRET"),
   },
   linkedin: {
     accessToken: env("LINKEDIN_ACCESS_TOKEN"),
