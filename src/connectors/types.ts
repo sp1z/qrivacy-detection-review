@@ -55,6 +55,22 @@ export interface NormalizedMention {
 
 export type MatchType = "handle_mention" | "code_link" | "qr_image" | "unknown";
 
+/**
+ * The minimum a connector needs to re-check one stored item: its own id for the
+ * post, and the payload we captured. Deliberately not `MentionRecord` — that
+ * lives in the store layer, which imports from here, and a connector has no
+ * business with triage state anyway.
+ *
+ * `raw` is here because two platforms need something out of it that the
+ * externalId does not carry: Mastodon's externalId is the ActivityPub URI while
+ * the API is addressed by the instance-local `id`, and Reddit's kind prefix
+ * decides which endpoint answers.
+ */
+export interface DeletionCandidate {
+  externalId: string;
+  raw: unknown;
+}
+
 export interface PollResult {
   mentions: NormalizedMention[];
   /** Opaque cursor to persist and pass back next poll (since_id, pagination). */
@@ -102,6 +118,27 @@ export interface Connector {
    */
   canReply(): boolean;
   reply?(mention: NormalizedMention, text: string): Promise<ReplyResult>;
+
+  /**
+   * "Which of these are gone?" — the deletion-propagation half of the contract.
+   *
+   * Given items we have stored, return the subset of `externalId`s whose content
+   * is **confirmed** absent or emptied on the platform, so the sweep can strip
+   * them (`src/pipeline/redact.ts`). Reddit's Developer Terms require this, and
+   * it is the right behaviour everywhere: someone who deletes a post has
+   * withdrawn it, and our copy is not exempt from that.
+   *
+   * THE CONTRACT IS ONE-DIRECTIONAL AND IT MATTERS. This answers "confirmed
+   * gone", never "not confirmed present". An implementation that cannot tell —
+   * the API errored, the token expired, a page 500'd, the response shape was
+   * unfamiliar — must return **fewer** ids, never more, and `[]` is always a
+   * safe answer. Getting that backwards turns one bad afternoon on a platform's
+   * API into the permanent, irreversible erasure of the whole inbox.
+   *
+   * Omit it and this connector's mentions are never checked for deletion, and
+   * the sweep says so out loud rather than counting them as clean.
+   */
+  findDeleted?(items: DeletionCandidate[]): Promise<string[]>;
 
   /**
    * Optional per-mention etiquette gate, asked before every reply. `canReply()`

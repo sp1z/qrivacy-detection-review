@@ -59,6 +59,27 @@ export const config = {
   // (bounded — never whole-video frame scanning). Opt-out with QR_DECODE=0.
   qrDecode: env("QR_DECODE", "1") !== "0",
 
+  /**
+   * Deletion propagation and retention (src/pipeline/redact.ts).
+   *
+   * `retentionDays` is ON by default, unlike almost everything else here. A
+   * retention ceiling that has to be switched on is one that is off on every
+   * deployment where nobody thought about it, which is exactly the deployment
+   * that ends up holding five years of other people's deleted posts. Set
+   * RETENTION_DAYS=0 to disable it deliberately; the sweep says so in the log
+   * every time it runs, because that is a choice someone should have to own.
+   */
+  redaction: {
+    retentionDays: Math.max(0, Number(env("RETENTION_DAYS", "180"))),
+    // Rows examined per platform per sweep. Reddit checks 100 per request, so
+    // 200 is two requests; Mastodon is one request each and caps itself lower.
+    batchSize: Math.max(1, Number(env("REDACTION_BATCH_SIZE", "200"))),
+    // Six hours. Deletion is not urgent — nobody is harmed by a withdrawn post
+    // lingering a few hours — and a tighter loop spends API budget the poll
+    // cycle has better uses for.
+    intervalMs: Math.max(60_000, Number(env("REDACTION_INTERVAL_MS", String(6 * 60 * 60 * 1000)))),
+  },
+
   // Opt-in: automatically post an acknowledgement reply to new mentions.
   // Default OFF — we never post to a platform without explicit opt-in.
   autoAcknowledge: env("AUTO_ACKNOWLEDGE", "") === "1",

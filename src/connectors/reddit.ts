@@ -4,6 +4,7 @@ import { runFootprintSearch } from "./search.js";
 import { getStore } from "../store/index.js";
 import type {
   Connector,
+  DeletionCandidate,
   NormalizedMention,
   PollResult,
   ReplyGate,
@@ -47,6 +48,17 @@ const MAX_MEDIA = 4;
 
 /** How far back to look for "did we already comment in this thread". */
 const THREAD_HISTORY = 200;
+
+/** /api/info takes up to 100 fullnames per call. */
+const INFO_BATCH = 100;
+
+/**
+ * Reddit does not remove a deleted thing from /api/info — it returns it with the
+ * author and the body replaced by one of these tombstones. So "still in the
+ * response" is not the same as "still there", and checking only for absence
+ * would find almost nothing.
+ */
+const TOMBSTONES = new Set(["[deleted]", "[removed]"]);
 
 // ---------------------------------------------------------------------------
 // Raw shapes (untrusted — normalise defensively)
@@ -403,6 +415,66 @@ export const redditConnector: Connector = {
   canReply() {
     // Posting is user-context only — an app-only token cannot comment.
     return canUseInbox();
+  },
+
+  /**
+   * Which of these are gone from Reddit? Required by the Developer Terms, and
+   * the reason `externalId` is stored as the fullname: it is exactly what
+   * /api/info takes, 100 at a time, so this costs one request per 100 rows.
+   *
+   * Three ways a thing counts as gone, and only the first is what you would
+   * guess:
+   *   - absent from the response entirely;
+   *   - present with `author` == "[deleted]" — the author removed their account
+   *     or the post, and Reddit leaves a tombstone rather than a hole;
+   *   - present with the body replaced by "[deleted]"/"[removed]".
+   *
+   * Moderator removal lands in the third case alongside author deletion, and we
+   * treat it the same. Reddit's requirement is about deletion, so that is
+   * stricter than asked for — deliberately. We would rather drop a post a mod
+   * hid than keep one an author withdrew, and nothing downstream needs the text
+   * of a removed post.
+   */
+  async findDeleted(items: DeletionCandidate[]): Promise<string[]> {
+    const gone: string[] = [];
+
+    for (let i = 0; i < items.length; i += INFO_BATCH) {
+      const batch = items.slice(i, i + INFO_BATCH);
+      // Fullnames only. Anything else in externalId is not addressable here, and
+      // guessing would be worse than skipping it.
+      const ids = batch.map((b) => b.externalId).filter((id) => /^t\d_[a-z0-9]+$/i.test(id));
+      if (!ids.length) continue;
+
+      const things = await getListing("/api/info", { id: ids.join(",") });
+
+      // A batch that returns NOTHING is treated as unknown, not as "all gone".
+      // An API hiccup, an expired token or an unfamiliar response shape all look
+      // like an empty listing, and acting on it would irreversibly erase up to
+      // 100 rows at a stroke. Returning [] just defers to the next sweep.
+      if (!things.length) {
+        console.warn(`[redact] reddit: /api/info returned nothing for ${ids.length} ids — skipping this batch`);
+        continue;
+      }
+
+      const seen = new Map<string, RedditData>();
+      for (const t of things) {
+        const d = t?.data;
+        if (d?.name) seen.set(d.name, d);
+      }
+
+      for (const id of ids) {
+        const d = seen.get(id);
+        if (!d) {
+          gone.push(id);
+          continue;
+        }
+        const author = (d.author ?? "").trim();
+        const body = (d.selftext ?? d.body ?? "").trim();
+        if (TOMBSTONES.has(author) || TOMBSTONES.has(body)) gone.push(id);
+      }
+    }
+
+    return gone;
   },
 
   /**

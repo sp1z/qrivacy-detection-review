@@ -39,10 +39,19 @@ CREATE TABLE IF NOT EXISTS mentions (
   discovered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
+  -- Deletion propagation and retention (migration 004). We are required to drop
+  -- content the author deleted on-platform; `redacted_at` records that we did.
+  -- Redaction strips the platform's content and the author's identity and keeps
+  -- the row, because a sighting already delivered to a customer references it.
+  last_checked_at DATETIME NULL,           -- last "is this still there?" ask; NULL = never
+  redacted_at     DATETIME NULL,
+  redacted_reason ENUM('deleted_upstream','retention') NULL,
+
   PRIMARY KEY (id),
   UNIQUE KEY uq_mentions_platform_ext (platform, external_id),
   KEY idx_mentions_status (status),
-  KEY idx_mentions_posted (posted_at)
+  KEY idx_mentions_posted (posted_at),
+  KEY idx_mentions_recheck (platform, redacted_at, last_checked_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Per-connector polling cursor (since_id / pagination token), one row each.

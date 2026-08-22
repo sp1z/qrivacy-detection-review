@@ -5,7 +5,7 @@ service, published so that Reddit — or anyone else assessing what this bot doe
 can read the code behind the claims rather than take our word for them.
 
 It is generated from a private repository by `bin/publish-review-extract.sh`.
-Source commit: `b492da6`. It is a subset: the deployment runbooks and server
+Source commit: `30773e7`. It is a subset: the deployment runbooks and server
 configuration are not here, because they describe a machine rather than a
 behaviour.
 
@@ -73,6 +73,26 @@ handled: "the bot should not say this" is usually the case where a human should.
 - Reads per cycle are hard-capped by `MAX_READS_PER_POLL`
   (`src/connectors/search.ts`), which logs loudly rather than truncating
   quietly.
+
+## Deleted content is deleted here
+
+`src/pipeline/redact.ts`, with the per-platform check in each connector's
+`findDeleted()` and the full write-up in
+`docs/deletion-and-retention.md`.
+
+A sweep every six hours asks each platform which of our stored rows are gone and
+strips those — the author, the text, the media and the raw payload. On Reddit
+that is `/api/info` in batches of 100, matching on the `[deleted]` /
+`[removed]` tombstones rather than on absence, because Reddit returns a
+deleted thing rather than omitting it. Moderator removals are treated as
+deletions too. A retention ceiling of 180 days applies to everything else
+regardless of whether it still exists.
+
+Rows are stripped rather than dropped: one may already have been reported to the
+customer whose code was detected, and what remains carries no user content and no
+author identity. Every uncertainty in that path resolves towards doing nothing —
+a check that errors, or returns an empty batch, redacts nothing and waits for the
+next sweep, because redaction cannot be undone.
 
 ## What is stored
 
