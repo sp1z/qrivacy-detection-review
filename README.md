@@ -5,14 +5,16 @@ service, published so that Reddit — or anyone else assessing what this bot doe
 can read the code behind the claims rather than take our word for them.
 
 It is generated from a private repository by `bin/publish-review-extract.sh`.
-Source commit: `f4b4b3e`. It is a subset: the deployment runbooks and server
+Source commit: `387cbe1`. It is a subset: the deployment runbooks and server
 configuration are not here, because they describe a machine rather than a
 behaviour.
 
 ## What the bot is for
 
-QRivacy sells wearable QR codes. Someone who would rather not appear in
-strangers' photos and videos wears one; a person who films them can scan it and
+QRivacy gives out free QR codes: anyone can sign up for one at no cost, and
+nobody has to buy anything. (Optional accessories such as phone cases and
+stickers just make a code easier to show.) Someone who would rather not appear
+in strangers' photos and videos displays theirs; a person who films them can scan it and
 tell them, anonymously, where they turned up. This service watches for a
 QRivacy code appearing online so the wearer finds out.
 
