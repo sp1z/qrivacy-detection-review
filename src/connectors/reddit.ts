@@ -1,6 +1,7 @@
 import { config, searchTerms } from "../config.js";
 import { fetchJson } from "./http.js";
 import { runFootprintSearch } from "./search.js";
+import { describeWait, markPolled, msUntilPollAllowed } from "./throttle.js";
 import { getStore } from "../store/index.js";
 import type {
   Connector,
@@ -368,6 +369,21 @@ export function subredditOf(m: NormalizedMention): string | null {
 // Connector
 // ---------------------------------------------------------------------------
 
+/**
+ * Reddit polls on its own clock, not the scheduler's one-minute tick. The Data
+ * API application states "once every 15 minutes" (docs/reddit-api-application.md),
+ * so this default is a commitment made in writing, not a tuning knob. Lowering
+ * REDDIT_MIN_POLL_MS means telling Reddit first. A person triages every
+ * detection anyway, so a 15-minute delay costs nothing, and one listing page
+ * (100 items) holds far more than 15 minutes of mentions.
+ */
+const DEFAULT_MIN_POLL_MS = 15 * 60_000;
+
+function minPollMs(): number {
+  const raw = Number(process.env.REDDIT_MIN_POLL_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_MIN_POLL_MS;
+}
+
 export const redditConnector: Connector = {
   platform: "reddit",
 
@@ -378,6 +394,12 @@ export const redditConnector: Connector = {
   },
 
   async poll(cursor: string | null): Promise<PollResult> {
+    const wait = msUntilPollAllowed("reddit", minPollMs());
+    if (wait > 0) {
+      return { mentions: [], cursor, throttled: true, throttledFor: describeWait(wait) };
+    }
+    markPolled("reddit");
+
     return runFootprintSearch<RedditThing>(
       {
         platform: "reddit",

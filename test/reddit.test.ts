@@ -170,6 +170,7 @@ test("sources cover search + every code domain, and the inbox only with an accou
 test("poll hits search, domain and inbox, dedupes across them, and advances the cursor", async () => {
   const { redditConnector, resetRedditAuth } = await import("../src/connectors/reddit.js");
   resetRedditAuth();
+  (await import("../src/connectors/throttle.js")).resetThrottleForTests();
 
   // The same post comes back from search AND the domain listing — the overlap
   // the shared driver exists to collapse.
@@ -197,6 +198,7 @@ test("poll hits search, domain and inbox, dedupes across them, and advances the 
 test("a cursor filters out items already seen, and never rewinds", async () => {
   const { redditConnector, resetRedditAuth } = await import("../src/connectors/reddit.js");
   resetRedditAuth();
+  (await import("../src/connectors/throttle.js")).resetThrottleForTests();
   const stub = stubReddit((path) => (path === "/search" ? [post()] : []));
   try {
     const res = await redditConnector.poll!("1780000001");
@@ -210,6 +212,7 @@ test("a cursor filters out items already seen, and never rewinds", async () => {
 test("raw_json=1 is always sent — without it every image URL comes back escaped", async () => {
   const { redditConnector, resetRedditAuth } = await import("../src/connectors/reddit.js");
   resetRedditAuth();
+  (await import("../src/connectors/throttle.js")).resetThrottleForTests();
   const seen: URLSearchParams[] = [];
   const stub = stubReddit((path, params) => {
     if (path === "/search") seen.push(params);
@@ -219,6 +222,31 @@ test("raw_json=1 is always sent — without it every image URL comes back escape
     await redditConnector.poll!(null);
     assert.equal(seen[0].get("raw_json"), "1");
     assert.equal(seen[0].get("include_over_18"), "on", "NSFW is read, just never replied to");
+  } finally {
+    stub.restore();
+  }
+});
+
+test("Reddit polls at most once every 15 minutes — the rate stated to Reddit", async () => {
+  const { redditConnector, resetRedditAuth } = await import("../src/connectors/reddit.js");
+  const t = await import("../src/connectors/throttle.js");
+  resetRedditAuth();
+  t.resetThrottleForTests();
+  const stub = stubReddit(() => []);
+  try {
+    const first = await redditConnector.poll!(null);
+    assert.notEqual(first.throttled, true);
+    const callsAfterFirst = stub.calls.length;
+
+    const second = await redditConnector.poll!(null);
+    assert.equal(second.throttled, true, "must stand down, and say so");
+    assert.ok(second.throttledFor);
+    assert.equal(stub.calls.length, callsAfterFirst, "a throttled poll makes no API call");
+
+    // 14 minutes later: still inside the window. 15: allowed.
+    const now = Date.now();
+    assert.ok(t.msUntilPollAllowed("reddit", 15 * 60_000, now + 14 * 60_000) > 0);
+    assert.equal(t.msUntilPollAllowed("reddit", 15 * 60_000, now + 15 * 60_000 + 1000), 0);
   } finally {
     stub.restore();
   }
@@ -275,6 +303,7 @@ test("never comments twice in the same thread", async () => {
 test("a 200 carrying an errors array is a FAILED reply, not a sent one", async () => {
   const { redditConnector, resetRedditAuth } = await import("../src/connectors/reddit.js");
   resetRedditAuth();
+  (await import("../src/connectors/throttle.js")).resetThrottleForTests();
   const real = globalThis.fetch;
   globalThis.fetch = (async (url: string) => {
     if (String(url).includes("access_token")) return json({ access_token: "t", expires_in: 3600 });
@@ -297,6 +326,7 @@ test("a 200 carrying an errors array is a FAILED reply, not a sent one", async (
 test("a successful reply returns the new comment's fullname", async () => {
   const { redditConnector, resetRedditAuth } = await import("../src/connectors/reddit.js");
   resetRedditAuth();
+  (await import("../src/connectors/throttle.js")).resetThrottleForTests();
   const real = globalThis.fetch;
   let body = "";
   globalThis.fetch = (async (url: string, init?: RequestInit) => {
