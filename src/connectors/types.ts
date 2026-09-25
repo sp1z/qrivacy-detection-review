@@ -18,7 +18,14 @@ export type Platform =
   | "instagram"
   | "facebook"
   | "linkedin"
-  | "tiktok";
+  | "tiktok"
+  | "youtube"
+  | "dailymotion"
+  | "lemmy"
+  | "peertube"
+  | "web"
+  | "flickr"
+  | "vimeo";
 
 /**
  * A single mention, normalized to one shape regardless of source platform.
@@ -75,6 +82,15 @@ export interface PollResult {
   mentions: NormalizedMention[];
   /** Opaque cursor to persist and pass back next poll (since_id, pagination). */
   cursor?: string | null;
+  /**
+   * This cycle did not run — the connector is on a slower clock than the
+   * scheduler (see connectors/throttle.ts). Distinct from an empty result on
+   * purpose: "we looked and found nothing" and "we did not look" must not print
+   * the same line, or a stalled connector reads as a quiet one.
+   */
+  throttled?: boolean;
+  /** Human-readable "next in …", for the scheduler's log line. */
+  throttledFor?: string;
 }
 
 export interface ReplyResult {

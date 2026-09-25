@@ -284,8 +284,12 @@ test("sweepPlatform marks EVERYTHING it asked about as checked, not just the del
 test("a connector with no deletion check is reported as UNCHECKED, never as clean", async () => {
   await freshStore();
   const { sweepPlatform } = await import("../src/pipeline/redact.js");
-  // x has no findDeleted implementation.
-  const result = await sweepPlatform("x", 100);
+  // linkedin is a stub with no findDeleted implementation. This used to name
+  // `x`, which gained one on 2026-08-22 — if this line ever has to change
+  // again, check the replacement is genuinely check-less rather than merely
+  // unconfigured, or the assertion below passes for the wrong reason
+  // ("not configured" is a different skip message).
+  const result = await sweepPlatform("linkedin", 100);
   assert.equal(result.checked, 0);
   assert.equal(result.redacted, 0);
   assert.match(result.skipped ?? "", /no deletion check/);

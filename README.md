@@ -5,7 +5,7 @@ service, published so that Reddit — or anyone else assessing what this bot doe
 can read the code behind the claims rather than take our word for them.
 
 It is generated from a private repository by `bin/publish-review-extract.sh`.
-Source commit: `d09269a`. It is a subset: the deployment runbooks and server
+Source commit: `f4b4b3e`. It is a subset: the deployment runbooks and server
 configuration are not here, because they describe a machine rather than a
 behaviour.
 

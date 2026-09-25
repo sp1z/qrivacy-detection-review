@@ -5,7 +5,7 @@
 
 CREATE TABLE IF NOT EXISTS mentions (
   id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  platform      ENUM('bluesky','reddit','mastodon','x','instagram','facebook','linkedin','tiktok') NOT NULL,
+  platform      ENUM('bluesky','reddit','mastodon','x','instagram','facebook','linkedin','tiktok','youtube','dailymotion','lemmy','peertube','web','flickr','vimeo') NOT NULL,
   -- Platform's own id for the post/comment. (platform, external_id) is unique
   -- so the same mention arriving twice (poll overlap + webhook) is idempotent.
   external_id   VARCHAR(191) NOT NULL,
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS mentions (
 -- `cursor` is a RESERVED WORD in MariaDB/MySQL — it must stay backticked in
 -- every statement that names the column, here and in src/store/mysql.ts.
 CREATE TABLE IF NOT EXISTS connector_state (
-  platform   ENUM('bluesky','reddit','mastodon','x','instagram','facebook','linkedin','tiktok') NOT NULL,
+  platform   ENUM('bluesky','reddit','mastodon','x','instagram','facebook','linkedin','tiktok','youtube','dailymotion','lemmy','peertube','web','flickr','vimeo') NOT NULL,
   `cursor`   VARCHAR(512) NULL,
   last_run_at DATETIME NULL,
   last_error TEXT NULL,
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS connector_state (
 -- Must outlive a restart: that request means never again, not "not until the
 -- next deploy". Written by src/pipeline/optout.ts, checked before every reply.
 CREATE TABLE IF NOT EXISTS reply_opt_outs (
-  platform      ENUM('bluesky','reddit','mastodon','x','instagram','facebook','linkedin','tiktok') NOT NULL,
+  platform      ENUM('bluesky','reddit','mastodon','x','instagram','facebook','linkedin','tiktok','youtube','dailymotion','lemmy','peertube','web','flickr','vimeo') NOT NULL,
   -- Stored lower-cased by the store layer so u/Name and u/name are one person.
   author_handle VARCHAR(191) NOT NULL,
   -- Where they said it — a permalink, so a mistaken opt-out can be reviewed.

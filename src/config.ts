@@ -179,10 +179,15 @@ export const config = {
 
   x: {
     bearerToken: env("X_BEARER_TOKEN"),
-    mentionedUserId: env("X_MENTIONED_USER_ID"),
     // Posting a reply needs a USER-context token (app-only bearer can't write).
     userAccessToken: env("X_USER_ACCESS_TOKEN"),
   },
+  // X_MENTIONED_USER_ID used to sit here and was read by NOTHING — removed
+  // 2026-08-22. The connector finds mentions by searching the handle as text
+  // (searchTerms()), so it needs no numeric id, and a setting that looks
+  // required but is inert is a trap: whoever fills it in believes they have
+  // configured something. If a future change moves to GET /2/users/:id/mentions
+  // it can come back, wired to the code that reads it.
   instagram: {
     accessToken: env("IG_ACCESS_TOKEN"),
     businessAccountId: env("IG_BUSINESS_ACCOUNT_ID"),
@@ -206,6 +211,60 @@ export const config = {
   tiktok: {
     clientKey: env("TIKTOK_CLIENT_KEY"),
     accessToken: env("TIKTOK_ACCESS_TOKEN"),
+  },
+
+  // YouTube needs one API key from a Google Cloud project — no OAuth, no app
+  // review, no account link. The key is the whole credential, which is also why
+  // it should be restricted to the YouTube Data API in the Cloud console.
+  //
+  // ⚠️ The quota is the design constraint, not the credential. `search.list`
+  // costs 100 of 10,000 units a day, so this connector polls on its own clock
+  // (YOUTUBE_MIN_POLL_MS) and folds every footprint term into ONE query. See
+  // docs/youtube.md for the arithmetic.
+  youtube: {
+    apiKey: env("YOUTUBE_API_KEY"),
+  },
+
+  // Dailymotion takes NO credential at all — nothing to put here. The one knob
+  // is DAILYMOTION_MIN_POLL_MS, read in the connector, because an anonymous
+  // caller's rate limit is per IP and cannot be raised by asking.
+  dailymotion: {},
+
+  // Lemmy takes NO credential either — nothing to put here. Two knobs are read
+  // straight from the environment in the connector: LEMMY_BASE_URL (which
+  // instance's federated index to search) and LEMMY_MIN_POLL_MS (courtesy, not
+  // a documented limit — instances are volunteer-run and an anonymous caller
+  // that misbehaves gets the whole IP blocked).
+  lemmy: {},
+
+  // PeerTube takes NO credential either. PEERTUBE_BASE_URL (which index to
+  // search — SepiaSearch by default) and PEERTUBE_MIN_POLL_MS are read straight
+  // from the environment in the connector.
+  peertube: {},
+
+  // The open web, via Google Programmable Search. BOTH halves are required —
+  // a key with no engine id answers 400 on every request and an engine id with
+  // no key answers 403, so `isConfigured()` insists on the pair rather than
+  // logging an error a minute forever.
+  web: {
+    apiKey: env("GOOGLE_PSE_KEY"),
+    engineId: env("GOOGLE_PSE_CX"),
+  },
+
+  // Flickr needs ONE key and no OAuth signing — search is an unauthenticated
+  // method. ⚠️ Without it every call still answers HTTP 200, with a
+  // `stat:"fail"` body, so the connector must refuse to run rather than poll
+  // and "succeed" forever. See the block at the top of connectors/flickr.ts.
+  flickr: {
+    apiKey: env("FLICKR_API_KEY"),
+  },
+
+  // Vimeo needs a personal access token with the `public` scope. It is the only
+  // one of the free connectors that needs a credential at all, and the only one
+  // whose response shape has NOT been verified against the live API — see the
+  // honesty note at the top of connectors/vimeo.ts.
+  vimeo: {
+    accessToken: env("VIMEO_ACCESS_TOKEN"),
   },
 };
 
